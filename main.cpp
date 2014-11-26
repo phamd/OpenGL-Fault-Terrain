@@ -30,10 +30,10 @@ float terrain[terrainLength][terrainWidth] = { 0.5 }; // sets all heights to 0.5
 const enum PolygonMode { Fill, Wireframe, FilledWire };
 
 /* Camera */
-//Vector3 camPos = { 0, 50, 300 }; 
-Vector3 camPos = { -40, 38, 30 };
-Vector3 camLook = {0,0,0};
 float theta = 300;
+float terrainAngle = 0;
+Vector3 camPos = { 0, 106.0f, 79.3f };
+Vector3 camLook = { 300 * cos(theta) + camPos.x, -249.f, 300 * sin(theta) + camPos.z };
 Vector3 mover;
 
 bool mouseCursorEnabled = true;
@@ -82,6 +82,7 @@ void resetTerrain(void) {
 			terrain[i][j] = 0.5; // initial terrain height
 		}
 	}
+	needNormals = true;
 }
 
 void setNormals(Vector3 quad[4])
@@ -145,6 +146,7 @@ void display(void)
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 		gluLookAt(camPos.x, camPos.y, camPos.z, camLook.x, camLook.y, camLook.z, 0, 1, 0);
+		glRotatef(terrainAngle, 0, 1, 0);
 /*		glRotatef(-mouseAngleY, 0.0f, 1.0, 0.0f);
 		glRotatef(-mouseAngleX, 1.0f, 0.0f, 0.0f);
 		glTranslatef(-camPos.x, -camPos.y, -camPos.z);
@@ -193,12 +195,12 @@ void keyboard(unsigned char key, int x, int y)
     // Camera look
 	case 'i':
 		if (camLook.y<=300){
-			camLook.y += 3;
+			camLook.y += 10;
 		}
 		break;
 	case 'k':
 		if (camLook.y >= -300){
-			camLook.y -= 3;	
+			camLook.y -= 10;	
 		}
 		break;
 	case 'j':
@@ -212,6 +214,16 @@ void keyboard(unsigned char key, int x, int y)
 		camLook.z = 300*sin(theta)+camPos.z;
 		break;
 
+	case 't': // Toggle Lighting
+		if (lightingEnabled) {
+			glDisable(GL_LIGHTING);
+			lightingEnabled = false;
+		}
+		else {
+			glEnable(GL_LIGHTING);
+			lightingEnabled = true;
+		}
+		break;
 	case 'm':
 		if (!mouseCursorEnabled) {
 				glutSetCursor(GLUT_CURSOR_CROSSHAIR);
@@ -225,7 +237,7 @@ void keyboard(unsigned char key, int x, int y)
 	case 'n':
 		needNormals = true;
 		break;
-	case 'r':
+	case 'r': // Reset terrain
 		resetTerrain();
 		break;
 	case 'p':
@@ -255,6 +267,9 @@ void keyboard(unsigned char key, int x, int y)
 	case ' ':
 		for (int i = 0; i < 100; i++)
 			faultTerrain();
+		std::cout << theta << std::endl;
+		printf("%f %f %f\n", camPos.x, camPos.y, camPos.z);
+		printf("%f %f %f\n", camLook.x, camLook.y, camLook.z);
 		break;
 	case 'q':
 		exit(0);
@@ -277,6 +292,13 @@ void special(int key, int x, int y)
 		camPos.x += mover.x*2; 
 		camPos.y += mover.y*2; 
 		camPos.z += mover.z*2; 
+		break;
+	case GLUT_KEY_LEFT:
+		terrainAngle += (terrainAngle == 350) ? -350 : 10;
+		std::cout<< terrainAngle << std::endl;
+		break;
+	case GLUT_KEY_RIGHT:
+		terrainAngle += (terrainAngle == 0) ? +350 : -10;
 		break;
     }
 }
