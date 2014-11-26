@@ -30,7 +30,11 @@ float terrain[terrainLength][terrainWidth] = { 0.5 }; // sets all heights to 0.5
 const enum PolygonMode { Fill, Wireframe, FilledWire };
 
 /* Camera */
+//Vector3 camPos = { 0, 50, 300 }; 
 Vector3 camPos = { -40, 38, 30 };
+Vector3 camLook = {0,0,0};
+float theta = 300;
+Vector3 mover;
 
 bool mouseCursorEnabled = true;
 float mouseAngleX = 0;
@@ -140,7 +144,7 @@ void display(void)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-		gluLookAt(camPos.x, camPos.y, camPos.z, 0, 0, 0, 0, 1, 0);
+		gluLookAt(camPos.x, camPos.y, camPos.z, camLook.x, camLook.y, camLook.z, 0, 1, 0);
 /*		glRotatef(-mouseAngleY, 0.0f, 1.0, 0.0f);
 		glRotatef(-mouseAngleX, 1.0f, 0.0f, 0.0f);
 		glTranslatef(-camPos.x, -camPos.y, -camPos.z);
@@ -185,6 +189,28 @@ void passiveMouse(int x, int y)
 void keyboard(unsigned char key, int x, int y)
 {
 	switch (key) {
+    
+    // Camera look
+	case 'i':
+		if (camLook.y<=300){
+			camLook.y += 3;
+		}
+		break;
+	case 'k':
+		if (camLook.y >= -300){
+			camLook.y -= 3;	
+		}
+		break;
+	case 'j':
+		theta -= 0.1;
+		camLook.x = 300*cos(theta)+camPos.x;
+		camLook.z = 300*sin(theta)+camPos.z;
+		break;
+	case 'l':
+		theta += 0.1;
+		camLook.x = 300*cos(theta)+camPos.x;
+		camLook.z = 300*sin(theta)+camPos.z;
+		break;
 
 	case 'm':
 		if (!mouseCursorEnabled) {
@@ -238,26 +264,21 @@ void keyboard(unsigned char key, int x, int y)
 
 void special(int key, int x, int y)
 {
+	mover = {camLook.x-camPos.x,camLook.y-camPos.y,camLook.z-camPos.z};
+	mover = mover.normalize();
 	switch (key) {
-	case GLUT_KEY_LEFT:
-		camPos.y -= 1;
-		break;
-	case GLUT_KEY_RIGHT:
-		camPos.y += 1;
-		break;
+    
 	case GLUT_KEY_DOWN:
-		camPos.x -= 1;
+		camPos.x -= mover.x*2; 
+		camPos.y -= mover.y*2; 
+		camPos.z -= mover.z*2; 
 		break;
 	case GLUT_KEY_UP:
-		camPos.x += 1;
+		camPos.x += mover.x*2; 
+		camPos.y += mover.y*2; 
+		camPos.z += mover.z*2; 
 		break;
-	case GLUT_KEY_PAGE_UP:
-		camPos.z += 1;
-		break;
-	case GLUT_KEY_PAGE_DOWN:
-		camPos.z -= 1;
-		break;
-	}
+    }
 }
 
 void reshape(int w, int h)
