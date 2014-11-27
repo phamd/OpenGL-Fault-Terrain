@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#include <vector>
 #include <iostream> // cout
 #include "Vector3.h"
 
@@ -26,12 +27,6 @@
  * y		: toggle shaders
 */
 
-/* //debug
-std::vector<std::vector<float>> terrain(terrainZ, std::vector<float>(terrainX, 0.5));
-std::vector<std::vector<Vector3>> vertexNormals(terrainZ, std::vector<Vector3>(terrainX, Vector3()));
-std::vector<std::vector<Vector3>> faceNormals(terrainZ, std::vector<Vector3>(terrainX, Vector3()));
-*/
-
 /* Terrain variables */ 
 const int terrainZ = 200;
 const int terrainX = 200;
@@ -39,6 +34,7 @@ const float maxHeight = 50;
 const float minHeight = 0;
 const float displacement = 0.5;
 float terrain[terrainZ][terrainX] = { 0.5 }; // sets all heights to 0.5
+//std::vector<std::vector<float>> terrain(terrainZ, std::vector<float>(terrainX, 0.5));
 enum PolygonMode { Fill, Wireframe, FilledWire };
 float terrainAngle = 0;
 
@@ -50,8 +46,6 @@ Vector3 mover;
 
 /* Mouse controls */
 bool mouseCursorEnabled = true;
-float mouseAngleX = 0;
-float mouseAngleY = -45;
 bool lastState = GLUT_UP;
 bool currentState = GLUT_UP;
 Vector3 mouse;
@@ -63,6 +57,8 @@ Vector3 light1 = { -(terrainX / 2.0f), maxHeight + 1.0f, -(terrainZ / 2.0f) };
 /* Normals */
 Vector3 vertexNormals[terrainZ][terrainX];
 Vector3 faceNormals[terrainZ][terrainX];
+//std::vector<std::vector<Vector3>> vertexNormals(terrainZ, std::vector<Vector3>(terrainX, Vector3()));
+//std::vector<std::vector<Vector3>> faceNormals(terrainZ, std::vector<Vector3>(terrainX, Vector3()));
 
 /* States */
 int totalTime = 0;
@@ -101,7 +97,8 @@ void faultTerrain(int times)
 	faultedAfterSmooth = true;
 }
 
-void resetTerrain(void) {
+void resetTerrain(void)
+{
 	for (int z = 0; z < terrainZ; z++) {
 		for (int x = 0; x < terrainX; x++) {
 			terrain[z][x] = 0.5; // initial terrain height
@@ -111,27 +108,35 @@ void resetTerrain(void) {
 	if (!flatShading) needVertexNormals = true;
 }
 
-void resetCamera(void) {
+void resetCamera(void)
+{
 	theta = 300;
 	camPos = { 0, 106.0f, 79.3f };
 	camLook = { 300.f * (float)cos(theta) + camPos.x, -249.f, 300.f * (float)sin(theta) + camPos.z };
 }
 
-Vector3 topographicColoring(Vector3 in){
+Vector3 topographicColoring(Vector3 in)
+{
+	float scale; // Scaled between each range
 	if(in.y < maxHeight * 0.2f){
-		return {0,0.7,0};
+		scale = in.y / (0.2f * maxHeight);
+		return { 0.0f, 0.7f, 0.0f * scale };
 	}
 	if (in.y < maxHeight * 0.4f){
-		return {1,0.8,0};
+		scale = in.y / (0.4f * maxHeight);
+		return { 1.0f * scale, 0.8f * scale, 0.0f };
 	}
 	if (in.y < maxHeight * 0.6f){
-		return {1,0.6,0};
+		scale = in.y / (0.6f * maxHeight);
+		return { 1.0f * scale, 0.6f * scale, 0.0f };
 	}
 	if (in.y < maxHeight * 0.8f){
-		return {1,0,0};
+		scale = in.y / (0.8f * maxHeight);
+		return { 1.0f * scale, 0.0f, 0.0f };
 	}
 	else{
-		return {0.5,0.5,0.5};
+		scale = in.y / (1.0f * maxHeight);
+		return { 0.5f*scale, 0.5f*scale, 0.5f*scale };
 	}
 }
 
@@ -148,7 +153,7 @@ void setFaceNormals(void)
 			v4 = quad[3].cross(quad[0]);
 			Vector3 faceNormal = { (v1.x + v2.x + v3.x + v4.x) / 4.f,
 				(v1.y + v2.y + v3.y + v4.y) / 4.f, (v1.z + v2.z + v3.z + v4.z) / 4.f };
-			faceNormals[z][x] = faceNormal;
+			faceNormals[z][x] = faceNormal.normalize();
 		}
 	}
 	needFaceNormals = false;
@@ -169,8 +174,7 @@ void setVertexNormals(void)
 			v4 = faceNormals[z-1][x];
 			Vector3 vertexNormal = { (v1.x + v2.x + v3.x + v4.x) / 4.f,
 				(v1.y + v2.y + v3.y + v4.y) / 4.f, (v1.z + v2.z + v3.z + v4.z) / 4.f };
-			printf("%f %f %f\n", vertexNormal.x, vertexNormal.y, vertexNormal.z);
-			vertexNormals[z][x] = vertexNormal;
+			vertexNormals[z][x] = vertexNormal.normalize();
 		}
 	}
 	needVertexNormals = false;
@@ -487,8 +491,8 @@ void init(void)
 
 int main(int argc, char* argv[])
 {
-//	printf("Enter a terrain size: ");
-//	scanf("%f", &terrainSize);
+	//printf("Enter a terrain size: ");
+	//scanf("%f", &terrainSize);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
