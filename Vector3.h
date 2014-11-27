@@ -16,6 +16,7 @@ public:
 	Vector3 directionTo(Vector3);
 	Vector3 scale(float);
 	Vector3 add(Vector3);
+	Vector3 add(float);
 	Vector3 cross(Vector3);
 	Vector3 normalize();
 	float dot(Vector3);

@@ -38,6 +38,11 @@ Vector3 Vector3::add(Vector3 other)
 	return Vector3(x + other.x, y + other.y, z + other.z);
 }
 
+Vector3 Vector3::add(float delta)
+{
+	return Vector3(x + delta, y + delta, z + delta);
+}
+
 Vector3 Vector3::scale(float scale)
 {
 	return Vector3(x * scale, y * scale, z * scale);
