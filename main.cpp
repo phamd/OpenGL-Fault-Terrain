@@ -10,7 +10,7 @@
 #include <time.h>
 #include <math.h>
 #include <vector>
-#include <iostream> // cout
+#include <iostream>
 #include "Vector3.h"
 
 /* Additional Features
@@ -19,7 +19,7 @@
 				   - https://www.opengl.org/discussion_boards/showthread.php/131581-GLUT-two-keys-at-once?p=979717&viewfull=1#post979717
  * Topographic map coloring.
  * Mouse drags change the camera angle.
- * Circle faulting algorithm - Best seen if you reset the terrain first before using it.
+ * Circle faulting algorithm - Best seen if you reset the terrain first before using it. (the faults only grow upwards)
 */
 
 /* Controls
@@ -62,8 +62,8 @@ bool lastState = GLUT_UP;
 bool currentState = GLUT_UP;
 
 /* Lighting (point lights) */
-float light0[4] = { (terrainX / 2.0f), maxHeight + 1.0f, (terrainZ / 2.0f), 1 };
-float light1[4] = { -(terrainX / 2.0f), maxHeight + 1.0f, -(terrainZ / 2.0f), 1 };
+float light0[4] = { (terrainX / 2.0f), maxHeight + 1.0f, (terrainZ / 2.0f), 0 };
+float light1[4] = { -(terrainX / 2.0f), maxHeight + 1.0f, -(terrainZ / 2.0f), 0 };
 
 /* Normals */
 //Vector3 vertexNormals[terrainZ][terrainX];
@@ -84,7 +84,7 @@ bool faultedAfterSmooth = false; // When toggling between shading modes, don't c
 bool keyStates[256] = { false };
 bool circleFault = false;
 
-/* Fault terrain algorithm from:
+/* Fault terrain algorithms from:
  *  http://www.lighthouse3d.com/opengl/terrain/index.php?fault
  */
 void faultTerrain(int times)
@@ -99,7 +99,7 @@ void faultTerrain(int times)
 
 			for (int z = 0; z < terrainZ; z++) {
 				for (int x = 0; x < terrainX; x++) {
-						if (a*z + b*x - c  > 0)
+						if (a*z + b*x - c  > 0) // if on one side of the line equation
 							terrain[z][x] += (terrain[z][x] + displacement > maxHeight) ? 0 : displacement;
 						else
 							terrain[z][x] -= (terrain[z][x] + displacement < minHeight) ? 0 : displacement;
@@ -109,13 +109,13 @@ void faultTerrain(int times)
 		else { // circle fault
 			int randX = rand() % (terrainX + 1);
 			int randZ = rand() % (terrainZ + 1);
-			int randCircSize = rand() % ((terrainX+terrainZ)/10);
+			int randCircSize = rand() % ((terrainX+terrainZ)/10); // circle diameter
 			for (int z = 0; z < terrainZ; z++) {
 				for (int x = 0; x < terrainX; x++) {
-					float pd = sqrt((randX - x)*(randX - x) + (randZ - z)*(randZ - z)) * 2.0f / randCircSize;
-					if (fabs(pd) <= 1.0f) {
+					float pd = sqrt((randX - x)*(randX - x) + (randZ - z)*(randZ - z)) * 2.0f / randCircSize; // pd = distanceFromCircle*2/size
+					if (fabs(pd) <= 1.0f) { // if the vertex is within the circle, displace it upwards
 						float diff = (displacement / 2.0f + sin(pd*3.14f)*displacement / 2.0f);
-						terrain[z][x] += (terrain[z][x] + diff > maxHeight) ? 0 : diff;
+						terrain[z][x] += (terrain[z][x] + diff > maxHeight) ? 0 : diff; // constrain to maxHeight
 					}
 				}
 			}
@@ -237,11 +237,13 @@ void drawTerrain(void)
 			Vector3 quad[4] = { { x + 0.f, terrain[z][x], z + 0.f }, { x + 0.f, terrain[z + 1][x], z + 1.f },
 			{ x + 1.f, terrain[z + 1][x + 1], z + 1.f }, { x + 1.f, terrain[z][x + 1], z + 0.f } };
 			
-			if (flatShading) glNormal3fv(faceNormals[z][x].v); // Define face normal for whole quad
+			if (flatShading) glNormal3fv(faceNormals[z][x].v); // Define one face normal for quad face
 			glBegin(GL_QUADS);
 				for (int q = 0; q < 4; q++) {
 					glColor3fv(topographicColoring(quad[q]).v);
 					if (!flatShading) glNormal3fv(vertexNormals[z][x].v); // Define vertex normal per vertex
+					// the material ambient and diffuse are set to the color due to glColorMaterial [in init()]
+					glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 20);
 					glVertex3fv(quad[q].v);
 				}
 			glEnd();
@@ -535,8 +537,7 @@ void init(void)
 
 	// Meterials
 	glEnable(GL_COLOR_MATERIAL);
-	glColorMaterial ( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE ) ; // use glColor for material
-	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 20);
+	glColorMaterial( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE ) ; // use glColor for material
 }
 
 void initalizeArrays(void)
