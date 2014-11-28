@@ -13,12 +13,13 @@
 #include <iostream> // cout
 #include "Vector3.h"
 
-/* Features
+/* Additional Features
  * Improved Camera - The camera has freelook (with constraints) and moves independently from where it's looking.
 				   - The camera can look diagonally as well by pressing multiple keys at once.
 				   - https://www.opengl.org/discussion_boards/showthread.php/131581-GLUT-two-keys-at-once?p=979717&viewfull=1#post979717
  * Topographic map coloring.
  * Mouse drags change the camera angle.
+ * Circle faulting algorithm - Best seen if you reset the terrain first before using it.
 */
 
 /* Controls
@@ -27,6 +28,7 @@
  * l		 : toggle lighting
  * k		 : toggle shaders
  * w		 : toggle between filled polygons, wireframe, and both
+ * f		 : toggle between line faulting and circle faulting algorithm
  * r		 : reset the scene and camera position
  * PgUp,PgDn : move the camera forwards and backwards (alt. keys: Home and End)
  * arrows	 : rotate the camera around its own axis
@@ -43,24 +45,21 @@ int terrainX = 50;
 const float maxHeight = 50;
 const float minHeight = 0;
 const float displacement = 0.5;
-//float terrain[terrainZ][terrainX] = { 0.5 }; // sets all heights to 0.5
-//std::vector<std::vector<float>> terrain(terrainZ, std::vector<float>(terrainX, 0.5));
 float** terrain;
-enum PolygonMode { Fill, Wireframe, FilledWire };
 float terrainXZAngle = 0;
 float terrainYAngle = 0;
+enum PolygonMode { Fill, Wireframe, FilledWire };
 
 /* Camera */
 float theta = 300;
 Vector3 camPos = { 0, 106.0f, 79.3f };
 Vector3 camLook = { 300.f * (float)cos(theta) + camPos.x, -249.f, 300.f * (float)sin(theta) + camPos.z };
-Vector3 mover;
+Vector3 mover; // moves the camera
 
 /* Mouse controls */
-bool mouseCursorEnabled = true;
+Vector3 mouse; // position
 bool lastState = GLUT_UP;
 bool currentState = GLUT_UP;
-Vector3 mouse;
 
 /* Lighting (point lights) */
 float light0[4] = { (terrainX / 2.0f), maxHeight + 1.0f, (terrainZ / 2.0f), 1 };
@@ -75,15 +74,15 @@ Vector3** faceNormals;
 Vector3** vertexNormals;
 
 /* States */
-int totalTime = 0;
 PolygonMode polygonMode = Fill;
 bool lightingEnabled = false;
 bool passiveFaulting = false;
 bool needFaceNormals = true;
 bool needVertexNormals = false;
 bool flatShading = true; // Flat vs Smooth
-bool faultedAfterSmooth = false; // If toggling between shading modes, don't calculate vertex normals again unless a fault occurs.
+bool faultedAfterSmooth = false; // When toggling between shading modes, don't calculate vertex normals again unless a fault occurs.
 bool keyStates[256] = { false };
+bool circleFault = false;
 
 /* Fault terrain algorithm from:
  *  http://www.lighthouse3d.com/opengl/terrain/index.php?fault
@@ -91,24 +90,34 @@ bool keyStates[256] = { false };
 void faultTerrain(int times)
 {
 	for (int t = 0; t < times; t++) {
-		float v = (float)rand();
-		float a = sin(v);
-		float b = cos(v);
-		float d = sqrt(terrainX*terrainX + terrainZ*terrainZ);
-		float c = ((float)rand() / RAND_MAX) * d - d / 2.0f;
-		for (int z = 0; z < terrainZ; z++) {
-			for (int x = 0; x < terrainX; x++) {
-				if (a*z + b*x - c  > 0) {
-					terrain[z][x] += (terrain[z][x] + 0.1f > maxHeight) ? 0 : displacement;
+		if (!circleFault) { // line fault
+			float v = (float)rand();
+			float a = sin(v);
+			float b = cos(v);
+			float d = sqrt(terrainX*terrainX + terrainZ*terrainZ);
+			float c = ((float)rand() / RAND_MAX) * d - d / 2.0f; // random number between -d/2 and d/2
+
+			for (int z = 0; z < terrainZ; z++) {
+				for (int x = 0; x < terrainX; x++) {
+						if (a*z + b*x - c  > 0)
+							terrain[z][x] += (terrain[z][x] + displacement > maxHeight) ? 0 : displacement;
+						else
+							terrain[z][x] -= (terrain[z][x] + displacement < minHeight) ? 0 : displacement;
+					}
 				}
-				else
-					terrain[z][x] -= (terrain[z][x] + displacement < minHeight) ? 0 : displacement;
-				/*if (false) {
-					float pd = 0; //distance from circle center * 2 / terrainCircleSize;
-					if (fabs(pd) <= 1.0)
-						terrain[z][x] += displacement / 2 + cos(pd*3.14)*displacement / 2;
+			}
+		else { // circle fault
+			int randX = rand() % (terrainX + 1);
+			int randZ = rand() % (terrainZ + 1);
+			int randCircSize = rand() % ((terrainX+terrainZ)/10);
+			for (int z = 0; z < terrainZ; z++) {
+				for (int x = 0; x < terrainX; x++) {
+					float pd = sqrt((randX - x)*(randX - x) + (randZ - z)*(randZ - z)) * 2.0f / randCircSize;
+					if (fabs(pd) <= 1.0f) {
+						float diff = (displacement / 2.0f + sin(pd*3.14f)*displacement / 2.0f);
+						terrain[z][x] += (terrain[z][x] + diff > maxHeight) ? 0 : diff;
+					}
 				}
-				}*/
 			}
 		}
 	}
@@ -222,20 +231,11 @@ void setVertexNormals(void)
  */
 void drawTerrain(void)
 {
-	Vector3 color = { 0.0f, 0.0f, 0.5f };
 	for (int z = 0; z < terrainZ - 1; z++) {
 		for (int x = 0; x < terrainX - 1; x++) {
 			// The quad's four vertex positions
 			Vector3 quad[4] = { { x + 0.f, terrain[z][x], z + 0.f }, { x + 0.f, terrain[z + 1][x], z + 1.f },
 			{ x + 1.f, terrain[z + 1][x + 1], z + 1.f }, { x + 1.f, terrain[z][x + 1], z + 0.f } };
-
-			if (false) { //debug: draw vertex normals
-				glBegin(GL_LINES);
-				glColor3f(1, 0, 0);
-				glVertex3f(x, terrain[z][x], z);
-				glVertex3fv(vertexNormals[z][x].add({ x + 0.f, terrain[z][x], z + 0.f }).v);
-				glEnd();
-			}
 			
 			if (flatShading) glNormal3fv(faceNormals[z][x].v); // Define face normal for whole quad
 			glBegin(GL_QUADS);
@@ -246,7 +246,7 @@ void drawTerrain(void)
 				}
 			glEnd();
 			
-			// Draw wireframe for combined (filled and wireframe) mode
+			// Draw wireframe for combined (filled wireframe) mode
 			if (polygonMode == FilledWire) {
 				glBegin(GL_LINE_LOOP);
 				for (int q = 0; q < 4; q++) {
@@ -264,13 +264,13 @@ void display(void)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-		gluLookAt(camPos.x, camPos.y, camPos.z, camLook.x, camLook.y, camLook.z, 0, 1, 0);
-		glRotatef(terrainXZAngle, 0, 1, 0);
-		glRotatef(terrainYAngle, 1, 0, 1);
+	gluLookAt(camPos.x, camPos.y, camPos.z, camLook.x, camLook.y, camLook.z, 0, 1, 0);
 	glColor3f(1, 1, 1);
 
 	glPushMatrix();
-		glTranslatef(-terrainX / 2, 0, -terrainZ / 2); // center the terrain onto origin
+		glRotatef(terrainXZAngle, 0, 1, 0);
+		glRotatef(terrainYAngle, 1, 0, 1);
+		glTranslatef(-terrainX / 2.0f, 0, -terrainZ / 2.0f); // center the terrain onto origin
 		drawTerrain();
 	glPopMatrix();
 
@@ -382,21 +382,24 @@ void keyboard(unsigned char key, int x, int y)
 {
 	switch (key) {
 
-	case 'l': // Toggle Lighting
+	// Toggle Lighting
+	case 'l':
 		if (lightingEnabled)
 			toggleLighting(false);
 		else
 			toggleLighting(true);
 		break;
 
-	case 'k': // Toggle Shading mode
+	// Toggle Shading mode
+	case 'k': 
 		if (flatShading)
 			toggleShading(false);
 		else
 			toggleShading(true);
 		break;
 	
-	case 'w': // Toggle wireframe 
+	// Toggle wireframe
+	case 'w': 
 		switch (polygonMode) {
 		case(Fill):
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -412,7 +415,8 @@ void keyboard(unsigned char key, int x, int y)
 		}
 		break;
 
-	case 'r': // Reset terrain
+	// Reset terrain
+	case 'r':
 		resetTerrain();
 		resetCamera();
 		break;
@@ -423,6 +427,9 @@ void keyboard(unsigned char key, int x, int y)
 		break;
 	case 'p': // continuous faulting
 		passiveFaulting = !passiveFaulting;
+		break;
+	case 'f': // Toggle between line or circle faults
+		circleFault = !circleFault;
 		break;
 
 	// Rotate terrain
@@ -445,15 +452,15 @@ void keyboard(unsigned char key, int x, int y)
 
 	// Move Light 0
 	case 'z':
-		light0[0] -=5;
-		light0[2] -=5;
+		light0[0] -= 5;
+		light0[2] -= 5;
 		break;
 	case 'c':
 		light0[0] += 5;
-		light0[2] +=5;
+		light0[2] += 5;
 		break;
 	case 's':
-		light0[1] +=5;
+		light0[1] += 5;
 		break;
 	case 'x':
 		light0[1] -= 5;
@@ -461,15 +468,15 @@ void keyboard(unsigned char key, int x, int y)
 
 	// Move Light 1
 	case 'v':
-		light1[0] -=5;
-		light1[2] -=5;
+		light1[0] -= 5;
+		light1[2] -= 5;
 		break;
 	case 'n':
 		light1[0] += 5;
-		light1[3] +=5;
+		light1[3] += 5;
 		break;
 	case 'g':
-		light1[1] +=5;
+		light1[1] += 5;
 		break;
 	case 'b':
 		light1[1] -= 5;
@@ -492,14 +499,6 @@ void specialUp(int key, int x, int y)
 void special(int key, int x, int y)
 {
 	keyStates[key] = true;
-}
-
-void reshape(int w, int h)
-{
-	glViewport(0, 0, w , h);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(60, (float)w / (float)h, 1, 500);
 }
 
 void init(void)
@@ -563,14 +562,38 @@ int getUserInput(void)
 	std::cout << "Enter a terrain width [50]: ";
 	std::cin >> terrainX;
 	if (terrainX < 50) terrainX = 50;
-	std::cout << "How many inital faults? [800]: ";
+	std::cout << "How many inital faults? [0]: ";
 	std::cin >> faultTimes;
-	if (faultTimes < 0) return 800;
+	if (faultTimes < 0) return 0;
 	return faultTimes;
+}
+
+void reshape(int w, int h)
+{
+	glViewport(0, 0, w, h);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	gluPerspective(60, (float)w / (float)h, 1, 500);
 }
 
 int main(int argc, char* argv[])
 {
+	printf("\
+Controls \n\
+* <space> : do 800 faults \n\
+* p	  : toggle passiveFaulting : continuously do 1 fault every update \n\
+* l	  : toggle lighting \n\
+* k	  : toggle shaders \n\
+* w	  : toggle between filled polygons, wireframe, and both \n\
+* f	  : toggle between line faulting and circle faulting algorithm \n\
+* r	  : reset the scene and camera position \n\
+* PgUp, PgDn : move the camera forwards and backwards(alt.keys: Home and End) \n\
+* arrowskeys : rotate the camera around its own axis \n\
+* mouse   : rotate the camera on its y - axis only(click and drag) \n\
+* s,x,z,c : Move first light up, down, backwards, forwards \n\
+* g,b,v,n : Move second light up, down, backwards, forwards \n\
+* <, >    : Rotate the terrain left and right(alt.keys: comma and period) \n\
+* :, ?    : Rotate the terrain on a diagonal axis(alt.keys: semicolon and slash) \n");
 	srand(time(NULL));
 	int faultTimes = getUserInput();
 	initalizeArrays();
