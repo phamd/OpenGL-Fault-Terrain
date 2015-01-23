@@ -62,14 +62,10 @@ bool lastState = GLUT_UP;
 bool currentState = GLUT_UP;
 
 /* Lighting (point lights) */
-float light0[4] = { (terrainX / 2.0f), maxHeight + 1.0f, (terrainZ / 2.0f), 0 };
-float light1[4] = { -(terrainX / 2.0f), maxHeight + 1.0f, -(terrainZ / 2.0f), 0 };
+float light0[4] = { (terrainX / 2.0f), maxHeight + 1.0f, (terrainZ / 2.0f), 1 };
+float light1[4] = { -(terrainX / 2.0f), maxHeight + 1.0f, -(terrainZ / 2.0f), 1 };
 
 /* Normals */
-//Vector3 vertexNormals[terrainZ][terrainX];
-//Vector3 faceNormals[terrainZ][terrainX];
-//std::vector<std::vector<Vector3>> vertexNormals(terrainZ, std::vector<Vector3>(terrainX, Vector3()));
-//std::vector<std::vector<Vector3>> faceNormals(terrainZ, std::vector<Vector3>(terrainX, Vector3()));
 Vector3** faceNormals;
 Vector3** vertexNormals;
 
